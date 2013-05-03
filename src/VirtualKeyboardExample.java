@@ -2,8 +2,10 @@ import javafx.application.Application;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
@@ -42,17 +44,21 @@ public class VirtualKeyboardExample extends Application {
       }
     });
     
+    final CheckBox disabledCheckBox = new CheckBox("Disable");
+    
     final HBox buttons = new HBox(5);
-    buttons.getChildren().addAll(okButton, cancelButton);
+    buttons.getChildren().addAll(okButton, cancelButton, disabledCheckBox);
+    buttons.setAlignment(Pos.CENTER);
 
     final VBox root = new VBox(5);
     root.setPadding(new Insets(10));
     Scene scene = new Scene(root);
     
-    VirtualKeyboard vkb = new VirtualKeyboard(scene.focusOwnerProperty());
+    VirtualKeyboard vkb = new VirtualKeyboard();
     
     // just add a border to easily visualize the boundary of the keyboard:
     vkb.view().setStyle("-fx-border-color: darkblue; -fx-border-radius: 5;");
+    vkb.view().disableProperty().bind(disabledCheckBox.selectedProperty());
     
     root.getChildren().addAll(textField, textArea, buttons, vkb.view());
 

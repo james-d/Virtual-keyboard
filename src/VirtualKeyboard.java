@@ -22,7 +22,6 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.PolygonBuilder;
 
 public class VirtualKeyboard {
@@ -30,7 +29,9 @@ public class VirtualKeyboard {
   
   /**
    * Creates a Virtual Keyboard. 
-   * @param target The node that will receive KeyEvents from this keyboard.
+   * @param target The node that will receive KeyEvents from this keyboard. 
+   * If target is null, KeyEvents will be dynamically forwarded to the focus owner
+   * in the Scene containing this keyboard.
    */
   public VirtualKeyboard(ReadOnlyObjectProperty<Node> target) {
     this.root = new VBox(5);
@@ -66,37 +67,17 @@ public class VirtualKeyboard {
             KeyCode.M, KeyCode.COMMA, KeyCode.PERIOD, KeyCode.SLASH } };
 
     // non-regular buttons (don't respond to Shift)
-    final Button escape = createButtonWithFixedText("Esc", KeyCode.ESCAPE, modifiers, target);
-    final Button backspace = createButtonWithFixedText("Backspace", KeyCode.BACK_SPACE, modifiers, target);
-    final Button delete = createButtonWithFixedText("Del", KeyCode.DELETE, modifiers, target);
-    final Button enter = createButtonWithFixedText("Enter", KeyCode.ENTER,  modifiers, target);
-    final Button tab = createButtonWithFixedText("Tab", KeyCode.TAB, modifiers, target);
+    final Button escape = createNonshiftableButton("Esc", KeyCode.ESCAPE, modifiers, target);
+    final Button backspace = createNonshiftableButton("Backspace", KeyCode.BACK_SPACE, modifiers, target);
+    final Button delete = createNonshiftableButton("Del", KeyCode.DELETE, modifiers, target);
+    final Button enter = createNonshiftableButton("Enter", KeyCode.ENTER,  modifiers, target);
+    final Button tab = createNonshiftableButton("Tab", KeyCode.TAB, modifiers, target);
 
     // Cursor keys, with graphic instead of text
-    final Button cursorLeft = createButtonWithFixedText("", KeyCode.LEFT, modifiers, target);
-    cursorLeft.setGraphic(PolygonBuilder.create()
-        .points(15.0, 5.0, 15.0, 15.0, 5.0, 10.0).fill(Color.rgb(64, 64, 64))
-        .build());
-    cursorLeft.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-
-    final Button cursorRight = createButtonWithFixedText("", KeyCode.RIGHT, modifiers, target);
-    cursorRight.setGraphic(PolygonBuilder.create()
-        .points(5.0, 5.0, 5.0, 15.0, 15.0, 10.0).fill(Color.rgb(64, 64, 64))
-        .build());
-    cursorRight.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-    
-    final Button cursorUp = createButtonWithFixedText("", KeyCode.UP, modifiers, target);
-    cursorUp.setGraphic(PolygonBuilder.create()
-        .points(10.0, 0.0, 15.0, 5.0, 5.0, 5.0).fill(Color.rgb(64,  64,  64))
-        .build());
-    cursorUp.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-    
-    final Button cursorDown = createButtonWithFixedText("", KeyCode.DOWN, modifiers, target);
-    cursorDown.setGraphic(PolygonBuilder.create()
-        .points(10.0, 5.0, 15.0, 0.0, 5.0, 0.0).fill(Color.rgb(64,  64,  64))
-        .build());
-    cursorDown.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-    
+    final Button cursorLeft = createCursorKey(KeyCode.LEFT, modifiers, target, 15.0, 5.0, 15.0, 15.0, 5.0, 10.0);
+    final Button cursorRight = createCursorKey(KeyCode.RIGHT, modifiers, target, 5.0, 5.0, 5.0, 15.0, 15.0, 10.0);
+    final Button cursorUp = createCursorKey(KeyCode.UP, modifiers, target, 10.0, 0.0, 15.0, 10.0, 5.0, 10.0);
+    final Button cursorDown = createCursorKey(KeyCode.DOWN, modifiers, target, 10.0, 10.0, 15.0, 0.0, 5.0, 0.0);
     final VBox cursorUpDown = new VBox(2);
     cursorUpDown.getChildren().addAll(cursorUp, cursorDown);
 
@@ -110,21 +91,14 @@ public class VirtualKeyboard {
       hbox.setAlignment(Pos.CENTER);
       root.getChildren().add(hbox);
 
-      if (extraLeftButtons[row] != null) {
-        hbox.getChildren().addAll(extraLeftButtons[row]);
-      }
-
+      hbox.getChildren().addAll(extraLeftButtons[row]);
       for (int k = 0; k < unshifted[row].length; k++) {
-        hbox.getChildren().add( createButton(unshifted[row][k], shifted[row][k], codes[row][k], modifiers, target));
+        hbox.getChildren().add( createShiftableButton(unshifted[row][k], shifted[row][k], codes[row][k], modifiers, target));
       }
-
-      if (extraRightButtons[row] != null) {
-        hbox.getChildren().addAll(extraRightButtons[row]);
-      }
-
+      hbox.getChildren().addAll(extraRightButtons[row]);
     }
 
-    final Button spaceBar = createButton(" ", " ", KeyCode.SPACE, modifiers, target);
+    final Button spaceBar = createNonshiftableButton(" ", KeyCode.SPACE, modifiers, target);
     spaceBar.setMaxWidth(Double.POSITIVE_INFINITY);
     HBox.setHgrow(spaceBar, Priority.ALWAYS);
 
@@ -136,15 +110,23 @@ public class VirtualKeyboard {
   }
   
   /**
-   * Visual component displaying this keyboard
-   * @return A view of the keyboard
+   * Creates a VirtualKeyboard which uses the focusProperty of the scene to which it is attached as its target
+   */
+  public VirtualKeyboard() {
+    this(null);
+  }
+  
+  /**
+   * Visual component displaying this keyboard. The returned node has a style class of "virtual-keyboard".
+   * Buttons in the view have a style class of "virtual-keyboard-button".
+   * @return a view of the keyboard.
    */
   public Node view() {
     return root ;
   }
   
   // Creates a "regular" button that has an unshifted and shifted value
-  private Button createButton(final String unshifted, final String shifted,
+  private Button createShiftableButton(final String unshifted, final String shifted,
       final KeyCode code, Modifiers modifiers, final ReadOnlyObjectProperty<Node> target) {
     final ReadOnlyBooleanProperty letter = new SimpleBooleanProperty( unshifted.length() == 1 && Character.isLetter(unshifted.charAt(0)));
     final StringBinding text = 
@@ -152,22 +134,21 @@ public class VirtualKeyboard {
         .then(shifted)
         .otherwise(unshifted);
     Button button = createButton(text, code, modifiers, target);
-    button.textProperty().bind(text);
     return button;
   }
 
   // Creates a button with fixed text not responding to Shift
-  private Button createButtonWithFixedText(final String text, final KeyCode code, final Modifiers modifiers, final ReadOnlyObjectProperty<Node> target) {
+  private Button createNonshiftableButton(final String text, final KeyCode code, final Modifiers modifiers, final ReadOnlyObjectProperty<Node> target) {
     StringProperty textProperty = new SimpleStringProperty(text);
     Button button = createButton(textProperty, code, modifiers, target);
-    button.setText(text);
     return button;
   }
   
   // Creates a button with mutable text, and registers listener with it
   private Button createButton(final ObservableStringValue text, final KeyCode code, final Modifiers modifiers, final ReadOnlyObjectProperty<Node> target) {
     final Button button = new Button();
-    
+    button.textProperty().bind(text);
+        
     // Important not to grab the focus from the target:
     button.setFocusTraversable(false);
     
@@ -177,7 +158,14 @@ public class VirtualKeyboard {
     button.setOnAction(new EventHandler<ActionEvent>() {
       @Override
       public void handle(ActionEvent event) {
-        final Node targetNode = target.get();
+
+        final Node targetNode ;
+        if (target != null) {
+          targetNode = target.get();
+        } else {
+          targetNode = view().getScene().getFocusOwner();
+        }
+        
         if (targetNode != null) {
           final String character;
           if (text.get().length() == 1) {
@@ -185,15 +173,12 @@ public class VirtualKeyboard {
           } else {
             character = KeyEvent.CHAR_UNDEFINED;
           }
-          final KeyEvent keyPressEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_PRESSED, character, code,
-              modifiers);
+          final KeyEvent keyPressEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_PRESSED, character, code, modifiers);
           targetNode.fireEvent(keyPressEvent);
-          final KeyEvent keyReleasedEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_RELEASED, character,
-              code, modifiers);
+          final KeyEvent keyReleasedEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_RELEASED, character, code, modifiers);
           targetNode.fireEvent(keyReleasedEvent);
           if (character != KeyEvent.CHAR_UNDEFINED) {
-            final KeyEvent keyTypedEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_TYPED, character, code,
-                modifiers);
+            final KeyEvent keyTypedEvent = createKeyEvent(button, targetNode, KeyEvent.KEY_TYPED, character, code, modifiers);
             targetNode.fireEvent(keyTypedEvent);
           }
           modifiers.releaseKeys();
@@ -210,6 +195,16 @@ public class VirtualKeyboard {
     return new KeyEvent(source, target, eventType, character, code.toString(),
         code, modifiers.shiftDown().get(), modifiers.ctrlDown().get(),
         modifiers.altDown().get(), modifiers.metaDown().get());
+  }
+  
+  // Utility method for creating cursor keys:
+  private Button createCursorKey(KeyCode code, Modifiers modifiers, ReadOnlyObjectProperty<Node> target, Double... points) {
+    Button button = createNonshiftableButton("", code, modifiers, target);
+    final Node graphic = PolygonBuilder.create().points(points).build();
+    graphic.setStyle("-fx-fill: -fx-mark-color;");
+    button.setGraphic(graphic);
+    button.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+    return button ;
   }
   
   // Convenience class to bundle together the modifier keys and their selected state
@@ -238,27 +233,27 @@ public class VirtualKeyboard {
       return tb;
     }
 
-    public ToggleButton shiftKey() {
+    public Node shiftKey() {
       return shift;
     }
 
-    public ToggleButton secondShiftKey() {
+    public Node secondShiftKey() {
       return shift2;
     }
 
-    public ToggleButton ctrlKey() {
+    public Node ctrlKey() {
       return ctrl;
     }
 
-    public ToggleButton altKey() {
+    public Node altKey() {
       return alt;
     }
 
-    public ToggleButton metaKey() {
+    public Node metaKey() {
       return meta;
     }
 
-    public ToggleButton capsLockKey() {
+    public Node capsLockKey() {
       return capsLock;
     }
 
